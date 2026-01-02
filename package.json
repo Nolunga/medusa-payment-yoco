@@ -1,0 +1,50 @@
+{
+  "name": "medusa-payment-yoco",
+  "version": "1.0.0",
+  "description": "An awesome Yoco payment provider for Medusa v2 - Accept card payments in South Africa",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": "https://github.com/Nolunga/medusa-payment-yoco.git",
+  "author": "Nolunga Ngcakane <nolungan@gmail.com>",
+  "license": "MIT",
+  "keywords": [
+    "medusa",
+    "medusa-plugin",
+    "medusa-plugin-payment",
+    "medusa-v2",
+    "yoco",
+    "payment",
+    "payment-gateway",
+    "south-africa",
+    "ecommerce",
+    "checkout"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@medusajs/framework": "^2.0.0"
+  },
+  "devDependencies": {
+    "@medusajs/framework": "^2.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^11.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/npm": "^11.0.2",
+    "@semantic-release/release-notes-generator": "^12.1.0",
+    "@types/node": "^20.0.0",
+    "semantic-release": "^23.0.0",
+    "typescript": "^5.6.0"
+  }
+}
