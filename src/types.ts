@@ -3,6 +3,12 @@ export interface YocoOptions {
   secretKey: string
   /** Enable debug logging */
   debug?: boolean
+  /** URL to redirect to after successful payment */
+  successUrl?: string
+  /** URL to redirect to after cancelled payment */
+  cancelUrl?: string
+  /** URL to redirect to after failed payment */
+  failureUrl?: string
 }
 
 export interface YocoCheckout {

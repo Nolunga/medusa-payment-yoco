@@ -107,7 +107,7 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
         throw new Error("Only ZAR currency supported")
       }
 
-      const checkout = await this.api<YocoCheckout>("/checkouts", "POST", {
+      const checkoutPayload: any = {
         amount: amountInCents,
         currency: "ZAR",
         metadata: {
@@ -115,7 +115,20 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
           resource_id: (context as any)?.resource_id,
         },
         externalId: (context as any)?.session_id,
-      })
+      }
+
+      // Add redirect URLs if configured
+      if (this.options_.successUrl) {
+        checkoutPayload.successUrl = this.options_.successUrl
+      }
+      if (this.options_.cancelUrl) {
+        checkoutPayload.cancelUrl = this.options_.cancelUrl
+      }
+      if (this.options_.failureUrl) {
+        checkoutPayload.failureUrl = this.options_.failureUrl
+      }
+
+      const checkout = await this.api<YocoCheckout>("/checkouts", "POST", checkoutPayload)
 
       return {
         id: checkout.id,
@@ -144,7 +157,7 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
         throw new Error("Only ZAR currency supported")
       }
 
-      const checkout = await this.api<YocoCheckout>("/checkouts", "POST", {
+      const checkoutPayload: any = {
         amount: amountInCents,
         currency: "ZAR",
         metadata: {
@@ -152,7 +165,20 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
           resource_id: (context as any)?.resource_id,
         },
         externalId: (context as any)?.session_id,
-      })
+      }
+
+      // Add redirect URLs if configured
+      if (this.options_.successUrl) {
+        checkoutPayload.successUrl = this.options_.successUrl
+      }
+      if (this.options_.cancelUrl) {
+        checkoutPayload.cancelUrl = this.options_.cancelUrl
+      }
+      if (this.options_.failureUrl) {
+        checkoutPayload.failureUrl = this.options_.failureUrl
+      }
+
+      const checkout = await this.api<YocoCheckout>("/checkouts", "POST", checkoutPayload)
 
       return {
         data: {
