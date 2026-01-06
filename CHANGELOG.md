@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Nolunga/medusa-payment-yoco/compare/v1.1.0...v1.2.0) (2026-01-06)
+
+
+### Features
+
+* add production-grade features for reliability and security ([2ed87eb](https://github.com/Nolunga/medusa-payment-yoco/commit/2ed87eb8f840e0a09fbefaaa0596576bbac64591))
+
 # [1.1.0](https://github.com/Nolunga/medusa-payment-yoco/compare/v1.0.1...v1.1.0) (2026-01-05)
 
 

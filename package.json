@@ -1,6 +1,6 @@
 {
   "name": "medusa-payment-yoco",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "An awesome Yoco payment provider for Medusa v2 - Accept card payments in South Africa",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
