@@ -10,11 +10,15 @@ The package handles the Yoco Checkout API flow, and provides a simple and consis
 
 - ✅ Accept payments via Yoco's secure hosted checkout
 - ✅ Webhook support for real-time payment updates
-- ✅ Full refund support
+- ✅ Full and partial refund support
 - ✅ Test & Live mode support
 - ✅ Configurable redirect URLs for success, cancel, and failure
-- ✅ TypeScript support
+- ✅ Idempotency keys to prevent duplicate charges
+- ✅ Production-grade error handling with detailed error codes
+- ✅ Input validation with Zod
+- ✅ TypeScript support with full type definitions
 - ✅ Debug logging
+- ✅ Comprehensive test coverage
 
 ## Compatibility
 
@@ -185,17 +189,89 @@ Full TypeScript support with exported types:
 import type { YocoOptions } from "medusa-payment-yoco"
 ```
 
+## Production Best Practices
+
+### Idempotency
+
+The package automatically handles idempotency for checkout creation and refunds using unique keys. This prevents duplicate charges if a network timeout causes a retry.
+
+### Error Handling
+
+The package provides detailed error codes for better error handling in your storefront:
+
+```typescript
+import { YocoPaymentError, YocoErrorCode } from "medusa-payment-yoco"
+
+try {
+  // Payment logic
+} catch (error) {
+  if (error instanceof YocoPaymentError) {
+    switch (error.code) {
+      case YocoErrorCode.CARD_DECLINED:
+        // Show user-friendly message
+        break
+      case YocoErrorCode.INSUFFICIENT_FUNDS:
+        // Handle insufficient funds
+        break
+      // ... handle other error codes
+    }
+  }
+}
+```
+
+Available error codes:
+- `CARD_DECLINED` - Card was declined
+- `INSUFFICIENT_FUNDS` - Insufficient funds
+- `INVALID_CARD` - Invalid card details
+- `EXPIRED_CARD` - Card has expired
+- `INVALID_CVV` - Invalid CVV code
+- `FRAUD_DETECTED` - Transaction flagged as fraudulent
+- `LIMIT_EXCEEDED` - Transaction limit exceeded
+- `NETWORK_ERROR` - Network communication error
+- `API_ERROR` - General API error
+
+### Partial Refunds
+
+The package supports partial refunds. Simply specify the amount when calling refund:
+
+```typescript
+// Refund R50.00 (5000 cents)
+await paymentService.refundPayment({
+  payment_id: "payment_123",
+  amount: 5000,
+  // ...
+})
+```
+
+### Logging
+
+Enable debug logging in production with caution:
+
+```typescript
+{
+  secretKey: process.env.YOCO_SECRET_KEY,
+  debug: process.env.NODE_ENV === "development", // Only in development
+}
+```
+
 ## Troubleshooting
 
 **Payment session not created?**
-- Check your secret key is correct
+- Check your secret key is correct (must start with `sk_test_` or `sk_live_`)
 - Ensure Yoco is enabled in your region
 - Enable `debug: true` to see detailed logs
+- Check that redirect URLs are valid HTTPS URLs
 
 **Webhooks not working?**
 - Webhook URL must be publicly accessible
 - URL format: `https://your-domain.com/hooks/payment/yoco_yoco`
 - Check webhook is enabled in Yoco dashboard
+- Verify webhook events are selected: `payment.succeeded`, `payment.failed`
+
+**Configuration validation errors?**
+- The package uses Zod for configuration validation
+- Check the error message for specific validation failures
+- Ensure all URLs use HTTPS protocol
 
 ## Links
 

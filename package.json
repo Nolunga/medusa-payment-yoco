@@ -28,7 +28,10 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run clean && npm run build && npm run test"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -43,8 +46,14 @@
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/npm": "^11.0.2",
     "@semantic-release/release-notes-generator": "^12.1.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
+    "jest": "^30.2.0",
     "semantic-release": "^23.0.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "zod": "^4.3.5"
   }
 }
