@@ -158,9 +158,39 @@ You can access the session ID from the URL query parameter to complete the order
 
 For production, set up webhooks in your Yoco Business Portal:
 
-1. Go to **Selling Online → Payment Gateway → Webhooks**
-2. Add webhook URL: `https://your-domain.com/hooks/payment/yoco_yoco`
-3. Select events: `payment.succeeded`, `payment.failed`
+Webhooks are registered through the API; there is no screen for it in the Yoco portal.
+
+1. Register the webhook with your secret key (the URL must be public https):
+
+```bash
+curl -X POST https://payments.yoco.com/api/webhooks \
+  -H "Authorization: Bearer $YOCO_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "medusa", "url": "https://your-domain.com/hooks/payment/yoco_yoco"}'
+```
+
+2. The response contains a `secret` (`whsec_...`). It is only returned once, so store it straight away. A test key registers a test-mode webhook, a live key a live one.
+3. The plugin handles `payment.succeeded` and `payment.failed`.
+4. Put that `whsec_...` secret in the `webhookSecret` option:
+
+```typescript
+options: {
+  secretKey: process.env.YOCO_SECRET_KEY,
+  webhookSecret: process.env.YOCO_WEBHOOK_SECRET,
+  // ...
+}
+```
+
+Webhooks are verified against the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers
+([Yoco docs](https://developer.yoco.com/guides/online-payments/webhooks/verifying-the-events)),
+with a 3 minute timestamp tolerance. **Without `webhookSecret` every webhook is ignored** (and a
+warning is logged); payments still complete through the redirect flow, which re-checks the checkout
+status with Yoco.
+
+### Amounts
+
+Amounts follow Medusa v2: major units (`270.85` is R270.85). The plugin converts to cents for
+Yoco and back for webhook data. The minimum payment is R2.00.
 
 ## Test Cards
 
@@ -241,10 +271,10 @@ Available error codes:
 The package supports partial refunds. Simply specify the amount when calling refund:
 
 ```typescript
-// Refund R50.00 (5000 cents)
+// Refund R50.00 (amounts are in major units, like everywhere else in Medusa)
 await paymentService.refundPayment({
   payment_id: "payment_123",
-  amount: 5000,
+  amount: 50,
   // ...
 })
 ```

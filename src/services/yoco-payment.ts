@@ -23,6 +23,8 @@ import {
   WebhookActionResult,
 } from "@medusajs/framework/types"
 import { randomUUID } from "crypto"
+import { fromCents, toCents } from "../utils/money"
+import { verifyWebhookSignature } from "../utils/webhook"
 import {
   YocoOptions,
   YocoOptionsSchema,
@@ -62,6 +64,23 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
   // ============================================
   // HELPERS
   // ============================================
+
+  /**
+   * Medusa hands the payment session id to providers as `data.session_id` (initiate) and
+   * `context.idempotency_key` (initiate / update); `context.session_id` is never set.
+   * Reading the wrong field left every checkout with an empty session id, so all sessions
+   * of a cart shared one idempotency key (a retry reused the cancelled checkout) and
+   * webhooks could not be matched back to a session.
+   */
+  private sessionIdOf(input: { data?: Record<string, unknown>; context?: unknown }): string {
+    const context = (input.context ?? {}) as Record<string, unknown>
+    return (
+      (input.data?.session_id as string | undefined) ||
+      (context.idempotency_key as string | undefined) ||
+      (context.session_id as string | undefined) ||
+      ""
+    )
+  }
 
   private log(msg: string, level: "info" | "warn" | "error" = "info") {
     if (this.options_.debug) {
@@ -135,7 +154,7 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
     const { amount, currency_code, context } = input
 
     try {
-      const amountInCents = Math.round(Number(amount))
+      const amountInCents = toCents(amount)
 
       // Validate amount
       if (amountInCents < MIN_AMOUNT_CENTS) {
@@ -150,11 +169,15 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
         throw new YocoPaymentError("Only ZAR currency is supported", YocoErrorCode.API_ERROR)
       }
 
-      const sessionId = (context as any)?.session_id || ""
-      const resourceId = (context as any)?.resource_id || ""
+      const sessionId = this.sessionIdOf(input)
+      const resourceId = ((context as any)?.resource_id as string | undefined) || ""
 
-      // Generate idempotency key to prevent duplicate checkouts
-      const idempotencyKey = `initiate-${sessionId}-${resourceId}-${amountInCents}`
+      // One checkout per payment session and amount. A new session (e.g. a retry after a
+      // cancelled or failed payment) must get a new checkout, so never share a key across
+      // sessions: fall back to a random key if the session id is somehow missing.
+      const idempotencyKey = sessionId
+        ? `initiate-${sessionId}-${amountInCents}`
+        : `initiate-${randomUUID()}`
 
       const checkoutPayload: any = {
         amount: amountInCents,
@@ -184,6 +207,7 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
       return {
         id: checkout.id,
         data: {
+          session_id: sessionId,
           yocoCheckoutId: checkout.id,
           redirectUrl: checkout.redirectUrl,
           status: checkout.status,
@@ -201,9 +225,9 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
     const { amount, currency_code, context } = input
 
     try {
-      const amountInCents = Math.round(Number(amount))
+      const amountInCents = toCents(amount)
 
-      if (amountInCents < 200) {
+      if (amountInCents < MIN_AMOUNT_CENTS) {
         throw new Error("Minimum amount is R2.00")
       }
 
@@ -211,14 +235,15 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
         throw new Error("Only ZAR currency supported")
       }
 
+      const sessionId = this.sessionIdOf(input)
       const checkoutPayload: any = {
         amount: amountInCents,
         currency: "ZAR",
         metadata: {
-          session_id: (context as any)?.session_id,
+          session_id: sessionId,
           resource_id: (context as any)?.resource_id,
         },
-        externalId: (context as any)?.session_id,
+        externalId: sessionId,
       }
 
       // Add redirect URLs if configured
@@ -236,6 +261,7 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
 
       return {
         data: {
+          session_id: sessionId,
           yocoCheckoutId: checkout.id,
           redirectUrl: checkout.redirectUrl,
           status: checkout.status,
@@ -308,7 +334,8 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
 
   async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
     const id = input.data?.yocoCheckoutId as string
-    const refundAmount = input.amount ? Math.round(Number(input.amount)) : undefined
+    // Medusa passes major units; Yoco refunds in cents.
+    const refundAmount = input.amount ? toCents(input.amount) : undefined
 
     if (!id) {
       throw new YocoPaymentError("[Yoco] No checkout ID provided for refund", YocoErrorCode.API_ERROR)
@@ -388,17 +415,40 @@ class YocoPaymentService extends AbstractPaymentProvider<YocoOptions> {
   }
 
   async getWebhookActionAndData(payload: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
-    const event = payload.data as unknown as YocoWebhookEvent
+    const secret = this.options_.webhookSecret
+    if (!secret) {
+      // Always logged (not behind `debug`): a silently ignored webhook is hard to diagnose.
+      this.logger_.warn("[Yoco] Webhook ignored: no webhookSecret configured")
+      return { action: "not_supported" }
+    }
+
+    const raw = payload.rawData as unknown
+    const rawBody =
+      typeof raw === "string" ? raw : raw ? Buffer.from(raw as Uint8Array).toString("utf8") : ""
+
+    if (!verifyWebhookSignature(rawBody, (payload.headers ?? {}) as Record<string, string>, secret)) {
+      this.logger_.warn("[Yoco] Webhook ignored: invalid signature")
+      return { action: "not_supported" }
+    }
+
+    let event: YocoWebhookEvent
+    try {
+      event = JSON.parse(rawBody) as YocoWebhookEvent
+    } catch {
+      return { action: "not_supported" }
+    }
     this.log(`Webhook: ${event.type}`)
 
-    const sessionId = (event.payload.metadata?.session_id as string) || ""
+    const sessionId = (event.payload?.metadata?.session_id as string) || ""
+    // Yoco reports cents; Medusa expects major units.
+    const data = { session_id: sessionId, amount: fromCents(event.payload?.amount) }
 
     if (event.type === "payment.succeeded") {
-      return { action: "authorized", data: { session_id: sessionId, amount: event.payload.amount } }
+      return { action: "authorized", data }
     }
 
     if (event.type === "payment.failed") {
-      return { action: "failed", data: { session_id: sessionId, amount: event.payload.amount } }
+      return { action: "failed", data }
     }
 
     return { action: "not_supported" }
